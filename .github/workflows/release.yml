@@ -13,6 +13,8 @@ on:
 jobs:
   build-and-release:
     runs-on: windows-latest
+    permissions:
+      contents: write
     
     steps:
     - name: Checkout code
@@ -64,6 +66,8 @@ jobs:
     - name: Build executable
       run: |
         python build.py ${{ env.VERSION }}
+        Write-Host "Build completed, checking dist directory..."
+        Get-ChildItem -Path dist -Recurse | ForEach-Object { Write-Host $_.FullName }
     
     - name: Find executable
       id: find-exe
@@ -75,6 +79,7 @@ jobs:
           echo "Found executable: $($exePath.FullName)"
         } else {
           Write-Error "Executable not found in dist directory"
+          Get-ChildItem -Path dist -Recurse | ForEach-Object { Write-Host $_.FullName }
           exit 1
         }
     
