@@ -79,7 +79,6 @@ jobs:
     name: Create Release
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -105,8 +104,13 @@ jobs:
             echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
             echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          elif [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Use commit SHA for manual triggers, or date-based tag
+            COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "TAG=manual-$(date +'%Y%m%d')-${COMMIT_SHA}" >> $GITHUB_OUTPUT
           else
-            echo "TAG=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+            COMMIT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
+            echo "TAG=build-$(date +'%Y%m%d')-${COMMIT_SHA}" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release Archives
@@ -128,13 +132,38 @@ jobs:
             chmod +x artifacts/linux/AutoKeyClicker
           fi
 
-      - name: Upload Release Assets
+      - name: Upload Release Assets (Tag/Release only)
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: Release ${{ steps.tag.outputs.TAG }}
           files: |
             AutoKeyClicker-*.zip
             AutoKeyClicker-*.tar.gz
+          draft: false
+          prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
+        
+      - name: Upload Artifacts as Release (Manual/Dispatch)
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag.outputs.TAG }}
+          name: Build ${{ steps.tag.outputs.TAG }}
+          files: |
+            AutoKeyClicker-*.zip
+            AutoKeyClicker-*.tar.gz
+          draft: true
+          prerelease: true
+          body: |
+            Manual build artifacts
+            
+            **Tag:** ${{ steps.tag.outputs.TAG }}
+            **Commit:** ${{ github.sha }}
+            **Branch:** ${{ github.ref_name }}
+            **Built:** ${{ github.event.head_commit.timestamp || github.run_started_at }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: github.event_name == 'workflow_dispatch'
 
