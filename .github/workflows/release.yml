@@ -81,8 +81,15 @@ jobs:
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
         git add README.md
-        git commit -m "chore: Update version badge to ${{ env.VERSION }}" || exit 0
-        git push || exit 0
+        
+        # Only commit if there are changes
+        $status = git status --porcelain README.md
+        if ($status) {
+          git commit -m "chore: Update version badge to ${{ env.VERSION }}"
+          git push
+        } else {
+          Write-Host "No changes to README.md, skipping commit"
+        }
     
     - name: Build executable
       run: |
