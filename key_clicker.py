@@ -19,12 +19,28 @@ import queue
 
 
 class ModernKeyClicker:
+    # Timing constants
+    MIN_INTERVAL = 0.01  # Minimum interval in seconds
+    DEFAULT_INTERVAL = 1.0
+    DEFAULT_HOTKEY = Key.f6
+    
+    # UI update constants
+    QUEUE_POLL_INTERVAL_ACTIVE = 50  # ms when active
+    QUEUE_POLL_INTERVAL_IDLE = 200   # ms when idle
+    COUNTER_UPDATE_THROTTLE = 0.1    # seconds between counter updates
+    
+    # Window constants
+    DEFAULT_WIDTH = 550
+    DEFAULT_HEIGHT = 750
+    MIN_WIDTH = 500
+    MIN_HEIGHT = 700
+    
     def __init__(self, root):
         self.root = root
         self.root.title("Auto Key Clicker")
-        self.root.geometry("550x750")
+        self.root.geometry(f"{self.DEFAULT_WIDTH}x{self.DEFAULT_HEIGHT}")
         self.root.resizable(True, True)
-        self.root.minsize(500, 700)
+        self.root.minsize(self.MIN_WIDTH, self.MIN_HEIGHT)
         
         # Dark mode color scheme
         self.bg_color = "#1e1e1e"
@@ -34,6 +50,22 @@ class ModernKeyClicker:
         self.button_hover = "#3d3d3d"
         self.success_color = "#28a745"
         self.danger_color = "#dc3545"
+        
+        # Cache fonts to avoid repeated creation
+        self.fonts = {
+            'title': font.Font(family="Segoe UI", size=22, weight="bold"),
+            'normal': font.Font(family="Segoe UI", size=10),
+            'normal_bold': font.Font(family="Segoe UI", size=10, weight="bold"),
+            'input': font.Font(family="Segoe UI", size=11),
+            'counter': font.Font(family="Segoe UI", size=28, weight="bold"),
+            'section': font.Font(family="Segoe UI", size=9, weight="bold"),
+            'dialog_title': font.Font(family="Segoe UI", size=14, weight="bold"),
+            'dialog_icon': font.Font(family="Segoe UI", size=20),
+            'dialog_text': font.Font(family="Segoe UI", size=10),
+        }
+        
+        # Cache for tray icon
+        self._tray_icon_image = None
         
         # Apply dark theme
         self.root.configure(bg=self.bg_color)
@@ -53,7 +85,8 @@ class ModernKeyClicker:
                             fieldbackground=self.secondary_bg,
                             background=self.secondary_bg,
                             foreground=self.fg_color)
-        except:
+        except (AttributeError, tk.TclError) as e:
+            # Silently ignore styling errors on platforms that don't support it
             pass
         
         # State variables
@@ -63,7 +96,7 @@ class ModernKeyClicker:
         self.press_count = 0
         self.keyboard_controller = Controller()
         self.hotkey_listener = None
-        self.hotkey_key = Key.f6
+        self.hotkey_key = self.DEFAULT_HOTKEY
         self.show_tray_notification = True  # Flag to show notification on first close
         
         # Special keys mapping
@@ -111,21 +144,25 @@ class ModernKeyClicker:
         self.setup_system_tray()
         
         # Check for messages from other threads
-        self.root.after(100, self.check_queue)
+        self.root.after(self.QUEUE_POLL_INTERVAL_IDLE, self.check_queue)
         
         # Handle window close
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Center window
-        self.center_window()
+        self.center_window(self.DEFAULT_WIDTH, self.DEFAULT_HEIGHT)
     
-    def center_window(self):
+    def center_window(self, width=None, height=None):
         """Center the window on screen"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
+        if width is None or height is None:
+            self.root.update_idletasks()
+            width = width or self.root.winfo_width()
+            height = height or self.root.winfo_height()
+        
+        screen_width = self.root.winfo_screenwidth()
+        screen_height = self.root.winfo_screenheight()
+        x = (screen_width // 2) - (width // 2)
+        y = (screen_height // 2) - (height // 2)
         self.root.geometry(f'{width}x{height}+{x}+{y}')
     
     def create_gui(self):
@@ -138,7 +175,7 @@ class ModernKeyClicker:
         title_label = tk.Label(
             header_frame,
             text="Auto Key Clicker",
-            font=font.Font(family="Segoe UI", size=22, weight="bold"),
+            font=self.fonts['title'],
             bg=self.bg_color,
             fg=self.fg_color
         )
@@ -166,7 +203,7 @@ class ModernKeyClicker:
             selectcolor=self.bg_color,
             activebackground=self.secondary_bg,
             activeforeground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             command=self.on_key_mode_change
         )
         regular_radio.pack(side=tk.LEFT, padx=20, pady=12)
@@ -181,7 +218,7 @@ class ModernKeyClicker:
             selectcolor=self.bg_color,
             activebackground=self.secondary_bg,
             activeforeground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             command=self.on_key_mode_change
         )
         special_radio.pack(side=tk.LEFT, padx=20, pady=12)
@@ -195,7 +232,7 @@ class ModernKeyClicker:
             text="Key:",
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             width=12,
             anchor="w"
         )
@@ -206,7 +243,7 @@ class ModernKeyClicker:
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=11),
+            font=self.fonts['input'],
             relief=tk.FLAT,
             highlightthickness=1,
             highlightbackground=self.secondary_bg,
@@ -225,7 +262,7 @@ class ModernKeyClicker:
             text="Special Key:",
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             width=12,
             anchor="w"
         )
@@ -251,7 +288,7 @@ class ModernKeyClicker:
             text="Interval (seconds):",
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             width=18,
             anchor="w"
         )
@@ -262,7 +299,7 @@ class ModernKeyClicker:
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=11),
+            font=self.fonts['input'],
             relief=tk.FLAT,
             highlightthickness=1,
             highlightbackground=self.secondary_bg,
@@ -271,7 +308,7 @@ class ModernKeyClicker:
             borderwidth=0
         )
         self.interval_entry.pack(side=tk.LEFT, padx=(0, 15), pady=12)
-        self.interval_entry.insert(0, "1.0")
+        self.interval_entry.insert(0, str(self.DEFAULT_INTERVAL))
         
         # Hotkey section
         hotkey_inner = tk.Frame(interval_frame, bg=self.secondary_bg)
@@ -282,7 +319,7 @@ class ModernKeyClicker:
             text="Toggle Hotkey:",
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             width=18,
             anchor="w"
         )
@@ -307,7 +344,7 @@ class ModernKeyClicker:
             text="Press Limit (0=∞):",
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             width=18,
             anchor="w"
         )
@@ -318,7 +355,7 @@ class ModernKeyClicker:
             bg=self.secondary_bg,
             fg=self.fg_color,
             insertbackground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=11),
+            font=self.fonts['input'],
             relief=tk.FLAT,
             highlightthickness=1,
             highlightbackground=self.secondary_bg,
@@ -340,7 +377,7 @@ class ModernKeyClicker:
             text="0",
             bg=self.secondary_bg,
             fg=self.accent_color,
-            font=font.Font(family="Segoe UI", size=28, weight="bold"),
+            font=self.fonts['counter'],
             width=10
         )
         self.counter_label.pack(side=tk.LEFT, padx=15, pady=12)
@@ -402,7 +439,7 @@ class ModernKeyClicker:
             text=title,
             bg=self.bg_color,
             fg="#888888",
-            font=font.Font(family="Segoe UI", size=9, weight="bold"),
+            font=self.fonts['section'],
             anchor="w"
         )
         title_label.pack(fill=tk.X, pady=(0, 6))
@@ -422,7 +459,7 @@ class ModernKeyClicker:
             command=command,
             bg=bg_color,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10, weight="bold"),
+            font=self.fonts['normal_bold'],
             relief=tk.FLAT,
             cursor="hand2",
             width=width,
@@ -451,7 +488,7 @@ class ModernKeyClicker:
             textvariable=variable,
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['normal'],
             relief=tk.FLAT,
             borderwidth=0,
             highlightthickness=1,
@@ -472,7 +509,7 @@ class ModernKeyClicker:
             bd=0,
             activebackground=self.button_hover,
             activeforeground=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10)
+            font=self.fonts['normal']
         )
         
         # Add values to menu
@@ -491,7 +528,8 @@ class ModernKeyClicker:
             try:
                 # Set dark mode for the menu
                 self._configure_windows_menu_colors(mb, menu)
-            except:
+            except (AttributeError, OSError, RuntimeError):
+                # Silently ignore if dark mode API is not available
                 pass
         
         return dropdown_frame
@@ -502,7 +540,7 @@ class ModernKeyClicker:
             # Try to use dark mode API for Windows 10/11
             import ctypes
             ctypes.windll.uxtheme.SetWindowTheme(menubutton.winfo_id(), "DarkMode_Explorer", None)
-        except:
+        except (AttributeError, OSError, RuntimeError):
             # Menu colors are configured via Menu widget settings above
             pass
     
@@ -533,7 +571,10 @@ class ModernKeyClicker:
             return key_str
         else:
             special_key_name = self.special_key_var.get()
-            return self.special_keys.get(special_key_name)
+            key = self.special_keys.get(special_key_name)
+            if key is None:
+                raise ValueError(f"Invalid special key: {special_key_name}")
+            return key
     
     def toggle_clicking(self):
         """Start or stop the key clicking"""
@@ -547,8 +588,8 @@ class ModernKeyClicker:
         try:
             # Validate inputs
             interval = float(self.interval_entry.get())
-            if interval < 0.01:
-                self.show_error_dialog("Error", "Interval must be at least 0.01 seconds")
+            if interval < self.MIN_INTERVAL:
+                self.show_error_dialog("Error", f"Interval must be at least {self.MIN_INTERVAL} seconds")
                 return
             
             limit = int(self.limit_entry.get())
@@ -588,6 +629,7 @@ class ModernKeyClicker:
     def click_worker(self, target_key, interval, limit):
         """Worker thread for clicking keys"""
         count = 0
+        last_update_time = 0
         
         while not self.stop_event.is_set():
             try:
@@ -605,7 +647,12 @@ class ModernKeyClicker:
                     self.keyboard_controller.release(target_key)
                 
                 count += 1
-                self.message_queue.put(("update_counter", count))
+                
+                # Throttle counter updates to reduce UI load
+                current_time = time.time()
+                if current_time - last_update_time >= self.COUNTER_UPDATE_THROTTLE:
+                    self.message_queue.put(("update_counter", count))
+                    last_update_time = current_time
                 
                 # Wait for interval
                 if self.stop_event.wait(interval):
@@ -614,6 +661,10 @@ class ModernKeyClicker:
             except Exception as e:
                 self.message_queue.put(("error", str(e)))
                 break
+        
+        # Always send final update to ensure counter is accurate
+        if count > 0:
+            self.message_queue.put(("update_counter", count))
     
     def reset_counter(self):
         """Reset the press counter"""
@@ -626,10 +677,12 @@ class ModernKeyClicker:
         self.counter_label.config(text=str(count))
     
     def check_queue(self):
-        """Check for messages from worker threads"""
+        """Check for messages from worker threads with adaptive polling"""
+        has_items = False
         try:
             while True:
                 msg_type, data = self.message_queue.get_nowait()
+                has_items = True
                 if msg_type == "update_counter":
                     self.update_counter(data)
                 elif msg_type == "stop":
@@ -640,35 +693,53 @@ class ModernKeyClicker:
         except queue.Empty:
             pass
         
-        self.root.after(100, self.check_queue)
+        # Adaptive delay: shorter when active, longer when idle
+        delay = self.QUEUE_POLL_INTERVAL_ACTIVE if (has_items or self.is_running) else self.QUEUE_POLL_INTERVAL_IDLE
+        self.root.after(delay, self.check_queue)
     
     def setup_hotkey_listener(self):
-        """Setup global hotkey listener"""
+        """Setup global hotkey listener with proper resource management"""
+        # Properly stop and wait for previous listener
         if self.hotkey_listener:
-            self.hotkey_listener.stop()
+            try:
+                self.hotkey_listener.stop()
+                self.hotkey_listener.join(timeout=0.5)  # Wait for thread to finish
+            except (AttributeError, RuntimeError) as e:
+                print(f"Warning cleaning up hotkey listener: {e}")
+            finally:
+                self.hotkey_listener = None
         
         def on_press(key):
             try:
                 if key == self.hotkey_key:
                     self.root.after(0, self.toggle_clicking)
-            except AttributeError:
+            except (AttributeError, RuntimeError):
+                # Ignore errors during shutdown or when root is destroyed
                 pass
         
         try:
             self.hotkey_listener = keyboard.Listener(on_press=on_press)
             self.hotkey_listener.start()
-        except Exception as e:
+        except (OSError, RuntimeError) as e:
             print(f"Warning: Could not setup hotkey listener: {e}")
+            self.hotkey_listener = None
+        except Exception as e:
+            # Log unexpected errors for debugging
+            import traceback
+            print(f"Unexpected error setting up hotkey listener: {e}")
+            traceback.print_exc()
+            self.hotkey_listener = None
     
     def create_tray_icon(self):
-        """Create system tray icon"""
-        # Create a simple icon
-        image = Image.new('RGB', (64, 64), color='#007acc')
-        draw = ImageDraw.Draw(image)
-        draw.ellipse([16, 16, 48, 48], fill='white')
-        draw.text((28, 28), "K", fill='#007acc', anchor="mm")
-        
-        return image
+        """Create system tray icon (cached)"""
+        if self._tray_icon_image is None:
+            # Create a simple icon
+            image = Image.new('RGB', (64, 64), color='#007acc')
+            draw = ImageDraw.Draw(image)
+            draw.ellipse([16, 16, 48, 48], fill='white')
+            draw.text((28, 28), "K", fill='#007acc', anchor="mm")
+            self._tray_icon_image = image
+        return self._tray_icon_image
     
     def setup_system_tray(self):
         """Setup system tray icon"""
@@ -696,9 +767,11 @@ class ModernKeyClicker:
     
     def show_window(self, icon=None, item=None):
         """Show the main window"""
-        self.root.after(0, self.root.deiconify)
-        self.root.after(0, self.root.lift)
-        self.root.after(0, self.root.focus_force)
+        def _show():
+            self.root.deiconify()
+            self.root.lift()
+            self.root.focus_force()
+        self.root.after(0, _show)
     
     def hide_window(self, icon=None, item=None):
         """Hide the main window"""
@@ -706,11 +779,13 @@ class ModernKeyClicker:
     
     def quit_application(self, icon=None, item=None):
         """Quit the application"""
-        self.stop_clicking()
-        if self.tray_icon:
-            self.tray_icon.stop()
-        self.root.after(0, self.root.quit)
-        self.root.after(0, self.root.destroy)
+        def _quit():
+            self.stop_clicking()
+            if self.tray_icon:
+                self.tray_icon.stop()
+            self.root.quit()
+            self.root.destroy()
+        self.root.after(0, _quit)
     
     def on_closing(self):
         """Handle window close event"""
@@ -778,7 +853,7 @@ application terms of service."""
             text=title,
             bg=self.secondary_bg,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=14, weight="bold"),
+            font=self.fonts['dialog_title'],
             anchor="w"
         )
         title_label.pack(side=tk.LEFT, padx=20, pady=15)
@@ -789,7 +864,7 @@ application terms of service."""
             text="ℹ" if dialog_type == "info" else "⚠",
             bg=self.secondary_bg,
             fg=icon_color,
-            font=font.Font(family="Segoe UI", size=20),
+            font=self.fonts['dialog_icon'],
             width=3
         )
         icon_label.pack(side=tk.RIGHT, padx=20, pady=15)
@@ -803,7 +878,7 @@ application terms of service."""
             message_container,
             bg=self.bg_color,
             fg=self.fg_color,
-            font=font.Font(family="Segoe UI", size=10),
+            font=self.fonts['dialog_text'],
             wrap=tk.WORD,
             relief=tk.FLAT,
             padx=10,
