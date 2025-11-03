@@ -4,7 +4,7 @@
 
 ![Version](https://img.shields.io/badge/version-2.0-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.7+-green.svg)
-![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)
 
 A sleek, modern Python-based auto key clicker with a beautiful dark-themed GUI and full system tray support.
 
@@ -22,7 +22,7 @@ A sleek, modern Python-based auto key clicker with a beautiful dark-themed GUI a
 - 🎯 **Press Limits** - Set maximum number of presses (0 for unlimited)
 - 🖥️ **System Tray** - Minimize to tray with full control access
 - 🔒 **Safety Features** - Built-in protections against system flooding
-- 🌐 **Cross-Platform** - Works on Windows, macOS, and Linux
+- 🌐 **Cross-Platform** - Works on Windows and Linux
 
 ---
 
