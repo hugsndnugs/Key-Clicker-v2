@@ -40,11 +40,25 @@ def build_executable(version=None):
     
     try:
         PyInstaller.__main__.run(args)
+        
+        # Determine executable name based on OS
+        exe_extension = '.exe' if os.name == 'nt' else ''
+        exe_name = f'AutoKeyClicker{exe_extension}'
+        
         if version:
             print(f"\n[OK] Build completed successfully! Version {version}")
         else:
             print("\n[OK] Build completed successfully!")
-        print(f"Executable location: dist/AutoKeyClicker{' considering OS-specific extension'}")
+        print(f"Executable location: dist/{exe_name}")
+        
+        # Verify file exists
+        exe_path = os.path.join('dist', exe_name)
+        if os.path.exists(exe_path):
+            file_size = os.path.getsize(exe_path) / (1024 * 1024)  # Size in MB
+            print(f"Executable size: {file_size:.2f} MB")
+        else:
+            print(f"[WARNING] Expected executable not found at: {exe_path}")
+            
     except Exception as e:
         print(f"\n[FAIL] Build failed: {e}")
         raise
