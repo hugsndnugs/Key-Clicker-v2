@@ -2,11 +2,14 @@
 
 <div align="center">
 
-![Version](https://img.shields.io/badge/version-2.0-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.7+-green.svg)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey.svg)
+![CI/CD](https://img.shields.io/badge/CI%2FCD-Automated-success.svg)
 
 A sleek, modern Python-based auto key clicker with a beautiful dark-themed GUI and full system tray support.
+
+> **🚀 Automated Releases**: This project uses CI/CD to automatically build and release a new version (v2.x) on each push to the main branch.
 
 </div>
 
@@ -42,6 +45,7 @@ A sleek, modern Python-based auto key clicker with a beautiful dark-themed GUI a
 ### Option 1: Standalone Executable (Recommended)
 
 1. Download the latest `AutoKeyClicker.exe` from the [releases](../../releases) page
+   - Each push to the main branch automatically creates a new release with version format `v2.x` (starting from v2.1)
 2. Double-click to run - no installation required!
 
 ### Option 2: From Source
@@ -217,6 +221,24 @@ KeyClicker/
 ### Issue: Tray icon not showing
 - **Solution**: Check system tray settings in your OS
 - Some Linux desktop environments require additional packages
+
+---
+
+## 🔄 CI/CD & Automated Releases
+
+This project uses GitHub Actions for continuous integration and deployment:
+
+- **Automatic Versioning**: Each push to the `main` branch automatically increments the version (v2.1, v2.2, v2.3, etc.)
+- **Automated Builds**: Windows executable is automatically built on each push
+- **Release Creation**: A new GitHub release is created with the built executable attached
+- **Version Format**: Uses semantic versioning in the format `v2.x` (major.minor)
+
+The CI/CD pipeline:
+1. Checks out the latest code
+2. Determines the next version by finding the latest tag and incrementing
+3. Builds the executable using PyInstaller
+4. Creates a GitHub release with the new version tag
+5. Uploads the executable to the release assets
 
 ---
 

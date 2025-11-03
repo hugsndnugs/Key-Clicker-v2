@@ -1,0 +1,102 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths-ignore:
+      - '**.md'
+      - '.gitignore'
+      - 'LICENSE'
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch all history for tags
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Get and increment version
+      id: version
+      run: |
+        # Get the latest version tag
+        $latestTag = git describe --tags --match "v*.*" --abbrev=0 2>$null
+        if ($LASTEXITCODE -ne 0) {
+          # No tags found, start with v2.1
+          $version = "2.1"
+        } else {
+          # Extract version number from tag (e.g., v2.1 -> 2.1)
+          $versionMatch = $latestTag -match "v(\d+)\.(\d+)"
+          if ($versionMatch) {
+            $major = [int]$matches[1]
+            $minor = [int]$matches[2]
+            # Increment minor version
+            $minor++
+            $version = "$major.$minor"
+          } else {
+            # Fallback to v2.1 if tag format is unexpected
+            $version = "2.1"
+          }
+        }
+        
+        $newTag = "v$version"
+        echo "VERSION=$version" >> $env:GITHUB_ENV
+        echo "TAG=$newTag" >> $env:GITHUB_ENV
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        echo "tag=$newTag" >> $env:GITHUB_OUTPUT
+        echo "Current version: $version"
+        echo "New tag: $newTag"
+    
+    - name: Build executable
+      run: |
+        python build.py ${{ env.VERSION }}
+    
+    - name: Find executable
+      id: find-exe
+      run: |
+        $exePath = Get-ChildItem -Path dist -Filter "*.exe" -Recurse | Select-Object -First 1
+        if ($exePath) {
+          echo "executable=$($exePath.FullName)" >> $env:GITHUB_OUTPUT
+          echo "executable-name=$($exePath.Name)" >> $env:GITHUB_OUTPUT
+          echo "Found executable: $($exePath.FullName)"
+        } else {
+          Write-Error "Executable not found in dist directory"
+          exit 1
+        }
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ env.TAG }}
+        name: Release ${{ env.TAG }}
+        body: |
+          ## Auto Key Clicker ${{ env.TAG }}
+          
+          Automated release built from commit ${{ github.sha }}
+          
+          ### Changes
+          - See commit history for details
+          
+          ### Download
+          Download the `AutoKeyClicker.exe` file from the assets below.
+        files: |
+          ${{ steps.find-exe.outputs.executable }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+

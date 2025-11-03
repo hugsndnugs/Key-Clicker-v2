@@ -734,7 +734,7 @@ class ModernKeyClicker:
     
     def show_info(self):
         """Show information dialog"""
-        info_text = """Auto Key Clicker v2.0
+        info_text = """Auto Key Clicker v2.1
 
 A modern keyboard automation tool.
 

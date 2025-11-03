@@ -6,8 +6,9 @@ Build script for creating executable from Auto Key Clicker
 import PyInstaller.__main__
 import os
 import shutil
+import sys
 
-def build_executable():
+def build_executable(version=None):
     """Build the executable using PyInstaller"""
     
     # Clean previous builds
@@ -31,12 +32,18 @@ def build_executable():
         '--collect-all=pystray',
     ]
     
-    print("Building executable...")
+    if version:
+        print(f"Building executable version {version}...")
+    else:
+        print("Building executable...")
     print(f"Command: pyinstaller {' '.join(args)}")
     
     try:
         PyInstaller.__main__.run(args)
-        print("\n[OK] Build completed successfully!")
+        if version:
+            print(f"\n[OK] Build completed successfully! Version {version}")
+        else:
+            print("\n[OK] Build completed successfully!")
         print(f"Executable location: dist/AutoKeyClicker{' considering OS-specific extension'}")
     except Exception as e:
         print(f"\n[FAIL] Build failed: {e}")
@@ -44,6 +51,7 @@ def build_executable():
 
 
 if __name__ == "__main__":
-    build_executable()
+    version = sys.argv[1] if len(sys.argv) > 1 else None
+    build_executable(version)
 
 
