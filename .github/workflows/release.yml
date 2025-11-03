@@ -98,8 +98,7 @@ jobs:
           
           ### Download
           Download the `AutoKeyClicker.exe` file from the assets below.
-        files: |
-          ${{ steps.find-exe.outputs.executable }}
+        files: dist/AutoKeyClicker.exe
         draft: false
         prerelease: false
       env:
