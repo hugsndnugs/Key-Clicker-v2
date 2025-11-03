@@ -36,10 +36,10 @@ def build_executable():
     
     try:
         PyInstaller.__main__.run(args)
-        print("\n✓ Build completed successfully!")
+        print("\n[OK] Build completed successfully!")
         print(f"Executable location: dist/AutoKeyClicker{' considering OS-specific extension'}")
     except Exception as e:
-        print(f"\n✗ Build failed: {e}")
+        print(f"\n[FAIL] Build failed: {e}")
         raise
 
 
