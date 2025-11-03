@@ -1,0 +1,217 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main, master, develop ]
+  release:
+    types: [ created ]
+  workflow_dispatch:
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install flake8 pytest
+
+      - name: Lint with flake8
+        run: |
+          # Stop the build if there are Python syntax errors or undefined names
+          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+          # Exit-zero treats all errors as warnings
+          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+        continue-on-error: true
+
+      - name: Validate Python syntax
+        run: |
+          python -m py_compile key_clicker.py build.py
+
+      - name: Check imports
+        run: |
+          python -c "import sys; sys.path.insert(0, '.'); import key_clicker; print('✓ All imports successful')"
+
+  build-windows:
+    name: Build Windows
+    needs: lint-and-test
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build executable
+        run: |
+          python build.py
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoKeyClicker-Windows
+          path: dist/*.exe
+          retention-days: 30
+
+  build-macos:
+    name: Build macOS
+    needs: lint-and-test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build executable
+        run: |
+          python build.py
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoKeyClicker-macOS
+          path: dist/AutoKeyClicker
+          retention-days: 30
+        if: hashFiles('dist/AutoKeyClicker') != ''
+
+  build-linux:
+    name: Build Linux
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          cache: 'pip'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk xvfb
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Build executable
+        run: |
+          export DISPLAY=:99
+          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
+          python build.py
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoKeyClicker-Linux
+          path: dist/AutoKeyClicker
+          retention-days: 30
+        if: hashFiles('dist/AutoKeyClicker') != ''
+
+  create-release:
+    name: Create Release
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AutoKeyClicker-Windows
+          path: artifacts/windows
+        continue-on-error: true
+
+      - name: Download macOS artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AutoKeyClicker-macOS
+          path: artifacts/macos
+        continue-on-error: true
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AutoKeyClicker-Linux
+          path: artifacts/linux
+        continue-on-error: true
+
+      - name: Get release tag
+        id: tag
+        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create Release Archives
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          
+          # Windows
+          if [ -d "artifacts/windows" ] && [ -n "$(ls -A artifacts/windows/*.exe 2>/dev/null)" ]; then
+            cd artifacts/windows
+            zip -r "../../AutoKeyClicker-Windows-${TAG}.zip" *.exe
+            cd ../..
+          fi
+          
+          # macOS
+          if [ -d "artifacts/macos" ] && [ -f "artifacts/macos/AutoKeyClicker" ]; then
+            cd artifacts/macos
+            zip -r "../../AutoKeyClicker-macOS-${TAG}.zip" AutoKeyClicker
+            cd ../..
+          fi
+          
+          # Linux
+          if [ -d "artifacts/linux" ] && [ -f "artifacts/linux/AutoKeyClicker" ]; then
+            cd artifacts/linux
+            tar -czf "../../AutoKeyClicker-Linux-${TAG}.tar.gz" AutoKeyClicker
+            cd ../..
+            chmod +x artifacts/linux/AutoKeyClicker
+          fi
+
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            AutoKeyClicker-*.zip
+            AutoKeyClicker-*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
