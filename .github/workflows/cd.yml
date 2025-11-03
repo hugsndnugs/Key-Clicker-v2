@@ -1,69 +1,16 @@
-name: CI/CD Pipeline
+name: CD Pipeline
 
 on:
   push:
-    branches: [ main, master, develop ]
     tags:
       - 'v*'
-  pull_request:
-    branches: [ main, master, develop ]
   release:
     types: [ created ]
   workflow_dispatch:
 
 jobs:
-  lint-and-test:
-    name: Lint & Test
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.9'
-          cache: 'pip'
-
-      - name: Install system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y python3-tk xvfb
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install flake8 pytest
-
-      - name: Start virtual display
-        run: |
-          export DISPLAY=:99
-          Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-          sleep 2  # Give Xvfb time to start
-          echo "DISPLAY=:99" >> $GITHUB_ENV
-
-      - name: Lint with flake8
-        run: |
-          # Stop the build if there are Python syntax errors or undefined names
-          flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
-          # Exit-zero treats all errors as warnings
-          flake8 . --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
-        continue-on-error: true
-
-      - name: Validate Python syntax
-        run: |
-          python -m py_compile key_clicker.py build.py
-
-      - name: Check imports
-        run: |
-          python -c "import sys; sys.path.insert(0, '.'); import key_clicker; print('✓ All imports successful')"
-        env:
-          DISPLAY: :99
-
   build-windows:
     name: Build Windows
-    needs: lint-and-test
     runs-on: windows-latest
     steps:
       - name: Checkout code
@@ -93,7 +40,6 @@ jobs:
 
   build-linux:
     name: Build Linux
-    needs: lint-and-test
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -133,7 +79,7 @@ jobs:
     name: Create Release
     needs: [build-windows, build-linux]
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -154,7 +100,14 @@ jobs:
 
       - name: Get release tag
         id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "TAG=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+          fi
 
       - name: Create Release Archives
         run: |
@@ -183,4 +136,5 @@ jobs:
             AutoKeyClicker-*.tar.gz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
 
