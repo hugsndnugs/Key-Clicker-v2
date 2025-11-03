@@ -791,12 +791,13 @@ class ModernKeyClicker:
         """Handle window close event"""
         # Show notification on first close (before hiding window)
         if self.show_tray_notification:
-            self.show_tray_notification_message()
             self.show_tray_notification = False  # Only show once per session
-        
-        self.hide_window()
+            # Hide window only after dialog is closed
+            self.show_tray_notification_message(on_close=self.hide_window)
+        else:
+            self.hide_window()
     
-    def show_tray_notification_message(self):
+    def show_tray_notification_message(self, on_close=None):
         """Show notification that app is still running in tray"""
         self.show_custom_dialog(
             "Auto Key Clicker",
@@ -804,7 +805,8 @@ class ModernKeyClicker:
             "You can access it by clicking the tray icon, or\n"
             "use the hotkey to control key clicking.\n\n"
             "To fully exit, use 'Exit' from the tray menu.",
-            dialog_type="info"
+            dialog_type="info",
+            on_close=on_close
         )
     
     def show_info(self):
@@ -829,7 +831,7 @@ application terms of service."""
         
         self.show_custom_dialog("About Auto Key Clicker", info_text, dialog_type="info")
     
-    def show_custom_dialog(self, title, message, dialog_type="info"):
+    def show_custom_dialog(self, title, message, dialog_type="info", on_close=None):
         """Show a custom dark-themed dialog"""
         dialog = tk.Toplevel(self.root)
         dialog.title(title)
@@ -838,6 +840,12 @@ application terms of service."""
         # Make dialog modal
         dialog.transient(self.root)
         dialog.grab_set()
+        
+        # Define close handler that calls callback if provided
+        def close_dialog():
+            dialog.destroy()
+            if on_close:
+                on_close()
         
         # Icon color based on dialog type
         icon_color = self.accent_color if dialog_type == "info" else self.danger_color
@@ -904,7 +912,7 @@ application terms of service."""
         ok_btn = self.create_modern_button(
             button_frame,
             "OK",
-            lambda: dialog.destroy(),
+            close_dialog,
             bg_color=icon_color,
             hover_color="#005a9e" if dialog_type == "info" else "#c82333",
             width=12
@@ -926,8 +934,8 @@ application terms of service."""
         dialog.resizable(False, False)
         
         # Focus on OK button
-        dialog.bind('<Return>', lambda e: dialog.destroy())
-        dialog.bind('<Escape>', lambda e: dialog.destroy())
+        dialog.bind('<Return>', lambda e: close_dialog())
+        dialog.bind('<Escape>', lambda e: close_dialog())
         dialog.focus_set()
         ok_btn.focus_set()
     
