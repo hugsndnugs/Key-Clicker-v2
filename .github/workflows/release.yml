@@ -6,7 +6,6 @@ on:
       - main
       - master
     paths-ignore:
-      - '**.md'
       - '.gitignore'
       - 'LICENSE'
 
@@ -62,6 +61,28 @@ jobs:
         echo "tag=$newTag" >> $env:GITHUB_OUTPUT
         echo "Current version: $version"
         echo "New tag: $newTag"
+    
+    - name: Update README version badge
+      run: |
+        # Update the version badge in README.md
+        $readmePath = "README.md"
+        $content = Get-Content $readmePath -Raw
+        
+        # Pattern to match the version badge and replace version number
+        $newVersion = $env:VERSION
+        $content = $content -replace '!\[Version\]\(https://img\.shields\.io/badge/version-[\d.]+-blue\.svg\)', "![Version](https://img.shields.io/badge/version-$newVersion-blue.svg)"
+        
+        # Write back to file
+        Set-Content -Path $readmePath -Value $content -NoNewline
+        Write-Host "Updated README.md version badge to $newVersion"
+    
+    - name: Commit README changes
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add README.md
+        git commit -m "chore: Update version badge to ${{ env.VERSION }}" || exit 0
+        git push || exit 0
     
     - name: Build executable
       run: |
